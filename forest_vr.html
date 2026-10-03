@@ -1,0 +1,198 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Forest Survival VR</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif}canvas{display:block}
+#m{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#ddd;background:rgba(0,0,0,.75);text-align:center;padding:16px;gap:10px;font-size:14px;line-height:1.5}
+button{font-size:18px;padding:12px 24px;border:0;border-radius:8px;background:#6a3;color:#fff;cursor:pointer}</style></head><body>
+<div id="m"><h1 style="margin:0">Forest Survival VR</h1>
+<div>Your plane crashed on a wooded island. Survive, craft, build, fight the cannibals.<br>
+<b>Desktop:</b> WASD move, Shift sprint, mouse look, click swing, E pick up, C craft axe, F campfire, B shelter, Z sleep (night, near shelter), 1 eat, 2 drink (at water)<br>
+<b>Sandbox:</b> M (Quest: left Y) opens the cheat menu. Arrows/right stick + Enter/trigger to pick. Something hidden is in there...<br><b>Quest:</b> left stick move, right stick snap-turn, swing right controller to hit, right trigger pick up, right A axe, right B fire, left X eat, left Y shelter/sleep, left grip drink</div>
+<div>Mode <select id="md"><option>Story</option><option>Sandbox</option></select> Map <select id="mp"><option>Island</option><option>Plane crash</option><option>Summer</option></select></div><button id="pl">Play (desktop)</button><button id="vr" style="display:none">Enter VR</button>
+<small>Original fan tribute with its own assets. Not the real game.</small></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const T=THREE,R=Math.random,cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+const sc=new T.Scene(),cam=new T.PerspectiveCamera(70,innerWidth/innerHeight,.05,300),rig=new T.Group();rig.add(cam);sc.add(rig);
+const ren=new T.WebGLRenderer({antialias:true});ren.setSize(innerWidth,innerHeight);ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.xr.enabled=true;ren.xr.setReferenceSpaceType('local-floor');document.body.appendChild(ren.domElement);
+sc.fog=new T.FogExp2(0x87a8c8,.025);
+const hemi=new T.HemisphereLight(0xaabbff,0x335522,.6),sun=new T.DirectionalLight(0xfff0cc,.8);sc.add(hemi,sun);
+const H=(x,z)=>3*Math.sin(x*.03)*Math.cos(z*.03)+1.2*Math.sin(x*.1+z*.07)+6-Math.hypot(x,z)*.045;
+// terrain
+{const g=new T.PlaneGeometry(300,300,100,100);g.rotateX(-Math.PI/2);const p=g.attributes.position,c=[];
+for(let i=0;i<p.count;i++){const y=H(p.getX(i),p.getZ(i));p.setY(i,y);const s=y<.8;c.push(s?.8:.2+R()*.1,s?.75:.45+R()*.1,s?.5:.15)}
+g.setAttribute('color',new T.Float32BufferAttribute(c,3));g.computeVertexNormals();sc.add(new T.Mesh(g,new T.MeshLambertMaterial({vertexColors:true})));
+const w=new T.Mesh(new T.PlaneGeometry(900,900).rotateX(-Math.PI/2),new T.MeshLambertMaterial({color:0x2a5f8f,transparent:true,opacity:.85}));w.position.y=0;sc.add(w)}
+// trees
+const NT=280,tr=[],trunk=new T.InstancedMesh(new T.CylinderGeometry(.25,.35,4,6),new T.MeshLambertMaterial({color:0x5a3a1e}),NT),
+crown=new T.InstancedMesh(new T.ConeGeometry(2,6,7),new T.MeshLambertMaterial({color:0x1d4d22}),NT),D=new T.Object3D();
+for(let i=0;i<NT;i++){let x,z,y;do{x=(R()-.5)*260;z=(R()-.5)*260;y=H(x,z)}while(y<1.2||Math.hypot(x,z)<8);
+const s=.8+R()*.6;tr.push({x,z,y,hp:4,s,i});D.scale.set(s,s,s);D.position.set(x,y+2*s,z);D.updateMatrix();trunk.setMatrixAt(i,D.matrix);D.position.y=y+6*s;D.updateMatrix();crown.setMatrixAt(i,D.matrix)}
+sc.add(trunk,crown);
+// crash site
+const smoke=[],cx=14,cz=9,cy=H(cx,cz),gm=c=>new T.MeshLambertMaterial({color:c,side:T.DoubleSide}),
+ad=(g,c,x,y,z,ry=0,rz=0,rx=0)=>{const o=new T.Mesh(g,gm(c));o.position.set(x,y,z);o.rotation.set(rx,ry,rz);sc.add(o);return o};
+ad(new T.CylinderGeometry(2.2,2.2,12,16,1,true,.9,4.6),0xc4c9cc,cx,cy+1,cz,.15,Math.PI/2);
+ad(new T.CylinderGeometry(.75,2.1,6,12,1,true),0xc4c9cc,cx+14,cy+.9,cz-5,.5,Math.PI/2-.25);
+ad(new T.BoxGeometry(.2,3.2,2.2),0xb33,cx+16,cy+3,cz-6,.5,0,.1);
+ad(new T.ConeGeometry(2.2,4,12,1,true),0xc4c9cc,cx-10,cy+.6,cz+4,0,Math.PI/2,.2);
+ad(new T.BoxGeometry(3,.25,11),0xaab0b5,cx+1,cy+.7,cz-8,.15,0,.12);
+ad(new T.BoxGeometry(3,.25,9),0xaab0b5,cx+5,cy+.4,cz+13,-.6,0,-.1);
+const eng=ad(new T.CylinderGeometry(.8,.8,2.6,10),0x333333,cx+2,cy+.9,cz-13,0,Math.PI/2);
+for(let i=0;i<7;i++)for(let j=0;j<3;j++)ad(new T.BoxGeometry(.6,1,.6),0x2a4a8a,cx-4.5+i*1.4,cy+.1,cz-1.2+j*1.1+(j==2?.4:0),R()*.3);
+for(let i=0;i<8;i++){const a=R()*6.28,d=5+R()*14,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d;ad(new T.BoxGeometry(.6,1,.6),0x2a4a8a,x,H(x,z)+.4,z,R()*6,R()*.5,R()*.5)}
+for(let i=0;i<14;i++){const a=R()*6.28,d=4+R()*16,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d;ad(new T.BoxGeometry(.6+R()*.3,.4,.9),[0x8a2a2a,0x2a5a3a,0x222222,0x6a5a2a][i%4],x,H(x,z)+.2,z,R()*6)}
+for(let i=0;i<10;i++){const a=R()*6.28,d=3+R()*12,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d;ad(new T.BoxGeometry(1.5+R()*2,.08,1+R()),0x9aa0a4,x,H(x,z)+.3,z,R()*6,R()*.5,R()*.5)}
+for(let i=0;i<3;i++){const f=new T.Mesh(new T.ConeGeometry(.35-i*.07,1+i*.3,6),new T.MeshBasicMaterial({color:[0xff5a10,0xffa020,0xffe060][i]}));f.position.set(cx+2+i*.15,cy+1.8+i*.1,cz-13);sc.add(f)}
+const crl=new T.PointLight(0xff7722,2.5,30);crl.position.set(cx+2,cy+3,cz-13);sc.add(crl);
+for(let i=0;i<14;i++){const m=new T.Mesh(new T.SphereGeometry(.5,6,6),new T.MeshBasicMaterial({color:0x444444,transparent:true,opacity:.4}));sc.add(m);smoke.push({m,x:cx+2,y:cy+2.5,z:cz-13,ph:i*.43})}
+function makeHand(left){const g=new T.Group(),m=new T.MeshLambertMaterial({color:0xe0b08a}),sg=left?-1:1;
+const ab=(w,h,d,x,y,z,rx)=>{const b=new T.Mesh(new T.BoxGeometry(w,h,d),m);b.position.set(x,y,z);b.rotation.x=rx||0;g.add(b);return b};
+ab(.085,.035,.1,0,0,-.02);for(let i=0;i<4;i++){ab(.017,.017,.06,-.03+i*.02,-.012,-.1,-.5);ab(.015,.015,.035,-.03+i*.02,-.04,-.125,-1.1)}
+ab(.02,.02,.06,sg*.05,0,-.04).rotation.y=sg*.6;
+const sl=new T.Mesh(new T.CylinderGeometry(.04,.045,.2,8),new T.MeshLambertMaterial({color:0x334455}));sl.rotation.x=Math.PI/2;sl.position.z=.12;g.add(sl);return g}
+function makeAxe(){const g=new T.Group(),h=new T.Mesh(new T.CylinderGeometry(.014,.014,.55,6),new T.MeshLambertMaterial({color:0x7a5a30}));h.rotation.x=Math.PI/2;h.position.set(0,-.035,-.1);
+const hd=new T.Mesh(new T.BoxGeometry(.02,.1,.14),new T.MeshLambertMaterial({color:0x888888}));hd.position.set(0,-.01,-.36);const bl=new T.Mesh(new T.BoxGeometry(.01,.12,.04),new T.MeshLambertMaterial({color:0xcccccc}));bl.position.set(0,-.01,-.44);g.add(h,hd,bl);g.position.set(0,0,0);return g}
+let wp='axe',sandbox=false,arms=false,portalOK=false,mapSel=0,secret=0,typed='';const holders=[],rhW=new T.Group(),RX={axe:1.1,chainsaw:.5,flintlock:0,map:-.5,portal:0};
+const pb=(g,a,b,c,x,y,z,col)=>{const m=new T.Mesh(new T.BoxGeometry(a,b,c),new T.MeshLambertMaterial({color:col}));m.position.set(x,y,z);g.add(m)};
+const WM={axe:makeAxe,chainsaw:()=>{const g=new T.Group();pb(g,.1,.12,.3,0,-.02,-.1,0xe06010);pb(g,.03,.06,.5,0,-.02,-.5,0x999999);pb(g,.05,.03,.1,0,-.09,-.05,0x222222);return g},
+flintlock:()=>{const g=new T.Group();pb(g,.04,.12,.05,0,-.06,.02,0x6a4a2a);pb(g,.03,.03,.5,0,.02,-.25,0x333333);pb(g,.05,.05,.15,0,0,-.05,0x6a4a2a);return g},
+map:()=>{const g=new T.Group();pb(g,.24,.01,.32,0,0,-.1,0xe8d9a8);pb(g,.1,.011,.1,.03,0,-.05,0xc44);return g},
+portal:()=>{const g=new T.Group();pb(g,.07,.08,.32,0,-.01,-.1,0xf2f2f2);pb(g,.05,.05,.1,0,0,-.3,0x2a8aff);pb(g,.03,.03,.05,0,0,-.37,0xff8a00);return g}};
+function equip(n,q){wp=n;for(const h of holders){while(h.children.length)h.remove(h.children[0]);h.add(WM[n]());h.rotation.x=RX[n]}if(!q)msg('Equipped '+n,1500)}
+const handsD=new T.Group(),rh=new T.Group(),lh=makeHand(true);{const r=makeHand(false);r.rotation.set(-.2,.7,-.9);rh.add(r,rhW);holders.push(rhW);rh.position.set(.3,-.3,-.45);lh.rotation.set(-.2,-.7,.9);lh.position.set(-.3,-.3,-.45);handsD.add(rh,lh);cam.add(handsD);equip('axe',1)}
+// pickups
+const items=[],mk=(t,x,z)=>{const m=new T.Mesh(t=='stick'?new T.CylinderGeometry(.03,.03,.7,5):t=='log'?new T.CylinderGeometry(.14,.14,1.3,8):new T.DodecahedronGeometry(.15),new T.MeshLambertMaterial({color:t=='stick'?0x7a5a30:t=='log'?0x5a3a1e:0x777777}));
+m.position.set(x,H(x,z)+.1,z);m.rotation.set(R()*3,R()*3,R()*3);sc.add(m);items.push({m,t,vy:0})};
+for(let i=0;i<160;i++){const x=(R()-.5)*240,z=(R()-.5)*240;if(H(x,z)>1)mk(R()<.7?'stick':'rock',x,z)}
+const rocks=[],falling=[];
+for(let i=0;i<30;i++){const x=(R()-.5)*240,z=(R()-.5)*240,y=H(x,z);if(y<1.3||Math.hypot(x-14,z-9)<20)continue;const sz=.9+R()*.8,m=new T.Mesh(new T.DodecahedronGeometry(sz,0),new T.MeshLambertMaterial({color:0x6a6a70}));m.position.set(x,y+sz*.5,z);m.rotation.set(R()*3,R()*3,R()*3);sc.add(m);rocks.push({m,hp:5,x,y,z})}
+const mkLog=(x,z)=>{mk('log',x,z);const it=items[items.length-1];it.m.position.y=H(x,z)+1.2;it.m.rotation.set(0,R()*6,Math.PI/2)};
+const ghost=new T.Mesh(new T.BoxGeometry(1,1,1),new T.MeshBasicMaterial({color:0x33ff55,transparent:true,opacity:.4}));ghost.visible=false;sc.add(ghost);
+const book={on:false,sel:0},GS=[[.6,.6,.6],[3,2,3],[3,2,.3],[3,.2,3]],GD=[1.5,3,3.2,3.2],
+REC=[['Campfire',{log:1,stick:2}],['Shelter',{log:4}],['Log wall',{log:2}],['Floor',{log:2}],['Pickaxe',{stick:2,rock:3}],['Sleep',{}]],
+can=r=>Object.entries(REC[r][1]).every(([k,v])=>inv[k]>=v);
+// state
+const inv={stick:0,rock:0,log:0,meat:0,axe:true},st={hp:100,food:100,water:100};let tod=.2,swingT=0,shelter=null,msgT='',msgU=0,fires=[],enemies=[],cool=0;
+const ang=()=>tod<5/7?tod*1.4*Math.PI:Math.PI+(tod-5/7)*3.5*Math.PI;
+const msg=(t,ms)=>{msgT=t;msgU=performance.now()+(ms||3500)};
+rig.position.set(0,H(0,0)+1.7,0);
+// HUD
+const hc=document.createElement('canvas');hc.width=512;hc.height=320;const hx=hc.getContext('2d'),ht=new T.CanvasTexture(hc),
+hud=new T.Mesh(new T.PlaneGeometry(.5,.3125),new T.MeshBasicMaterial({map:ht,transparent:true,depthTest:false}));hud.position.set(0,-.3,-.7);hud.renderOrder=999;cam.add(hud);
+function drawHud(){hx.clearRect(0,0,512,320);if(intro.on){hx.font='bold 24px sans-serif';if(performance.now()<msgU){hx.fillStyle='#000a';hx.fillRect(10,170,492,40);hx.fillStyle='#fff';hx.fillText(msgT,16,198)}ht.needsUpdate=true;return}hx.font='bold 24px sans-serif';[['HP',st.hp,'#d33'],['FOOD',st.food,'#da3'],['WATER',st.water,'#39d']].forEach(([n,v,c],i)=>{hx.fillStyle='#000a';hx.fillRect(10,10+i*34,300,28);hx.fillStyle=c;hx.fillRect(12,12+i*34,296*v/100,24);hx.fillStyle='#fff';hx.fillText(n,16,33+i*34)});
+hx.fillStyle='#000a';hx.fillRect(10,118,492,34);hx.fillStyle='#fff';hx.fillText(`stick ${inv.stick} rock ${inv.rock} log ${inv.log} meat ${inv.meat} ${inv.axe?'AXE':''} ${inv.pick?'PICK':''}`,16,143);
+hx.fillText(Math.sin(ang())>.05?'Day':'Night',400,33);if(book.on){hx.fillStyle='#000c';hx.fillRect(10,216,492,96);hx.font='bold 18px sans-serif';REC.forEach((r,i)=>{hx.fillStyle=i==book.sel?'#ff6':can(i)?'#8f8':'#f88';hx.fillText((i+1)+'.'+r[0]+' '+Object.entries(r[1]).map(([k,v])=>k[0].toUpperCase()+v).join(' '),16+(i%2)*250,244+Math.floor(i/2)*30)});hx.font='bold 24px sans-serif'}
+if(cheat.on){const L=chl(),s0=Math.max(0,Math.min(cheat.sel-2,L.length-5));hx.fillStyle='#000c';hx.fillRect(10,216,492,96);hx.font='bold 17px sans-serif';for(let i=0;i<5&&s0+i<L.length;i++){hx.fillStyle=s0+i==cheat.sel?'#ff6':'#fff';hx.fillText((s0+i==cheat.sel?'> ':'   ')+L[s0+i][0],16,238+i*19)}hx.font='bold 24px sans-serif'}
+if(wp=='map'){hx.fillStyle='#000a';hx.fillRect(426,40,76,76);const pq=ppos(),m2=(x,z,c)=>{hx.fillStyle=c;hx.fillRect(464+cl(x*.25,-36,36)-2,78+cl(z*.25,-36,36)-2,4,4)};m2(cx,cz,'#f80');fires.forEach(f=>m2(f.x,f.z,'#ff0'));enemies.forEach(e=>m2(e.g.position.x,e.g.position.z,'#f33'));cits.forEach(e=>m2(e.g.position.x,e.g.position.z,'#39f'));m2(pq.x,pq.z,'#fff')}
+if(performance.now()<msgU){hx.fillStyle='#000a';hx.fillRect(10,170,492,40);hx.fillStyle='#ff8';hx.fillText(msgT,16,198)}ht.needsUpdate=true}
+// enemies
+function spawnEn(near){const a=R()*6.28,pw=near?ppos():{x:0,z:0},d=near?9:50+R()*60,x=pw.x+Math.cos(a)*d,z=pw.z+Math.sin(a)*d;if(H(x,z)<1)return;const g=new T.Group(),sk=new T.MeshLambertMaterial({color:0xc9a27a}),
+b=new T.Mesh(new T.BoxGeometry(.5,.9,.3),sk);b.position.y=1;const h=new T.Mesh(new T.SphereGeometry(.18),sk);h.position.y=1.65;const l=new T.Mesh(new T.BoxGeometry(.4,.7,.25),new T.MeshLambertMaterial({color:0x553322}));l.position.y=.35;
+g.add(b,h,l);g.position.set(x,H(x,z),z);sc.add(g);enemies.push({g,hp:5,cd:0})}
+for(let i=0;i<6;i++)spawnEn();
+// actions
+const pp=new T.Vector3(),fw=new T.Vector3();
+const ppos=()=>cam.getWorldPosition(pp);
+function hit(p,dir,reach){if(wp=='flintlock'||wp=='portal'||wp=='map')return;if(cool>0)return;cool=.5;swingT=1;const dmg=wp=='chainsaw'?6:wp=='axe'?3:1;let done=0;
+for(let i=enemies.length-1;i>=0;i--){const e=enemies[i],v=e.g.position.clone().add(new T.Vector3(0,1,0)).sub(p);if(v.length()<reach&&v.normalize().dot(dir)>.2){e.hp-=dmg;e.g.position.addScaledVector(dir,.8);done=1;
+if(e.hp<=0){sc.remove(e.g);enemies.splice(i,1);inv.meat++;msg('Cannibal down. Meat +1')}}}
+if(!done)for(const t of tr){if(t.hp<=0)continue;const v=new T.Vector3(t.x,t.y+1.5,t.z).sub(p);if(v.length()<reach+.8&&v.normalize().dot(dir)>.3){done=1;if(wp!='axe'&&wp!='chainsaw'){msg('Need an axe or chainsaw');break}t.hp-=wp=='chainsaw'?2.6:1.3;if(t.hp<=0)fell(t,p);else msg('Chopping... '+Math.ceil(t.hp/1.3)+' more');break}}
+if(!done)for(const r of rocks){if(r.hp<=0)continue;const v=r.m.position.clone().sub(p);if(v.length()<reach+1.3&&v.normalize().dot(dir)>.3){r.hp-=inv.pick?1.5:.4;if(r.hp<=0){sc.remove(r.m);for(let j=0;j<3;j++){mk('rock',r.x+R()-.5,r.z+R()-.5);items[items.length-1].m.position.y=r.y+1.5}msg('Rock broken. Pick up the stone')}else msg(inv.pick?'Mining...':'Too hard. Craft a pickaxe (book)');break}}}
+function fell(t,p){D.scale.set(0,0,0);D.updateMatrix();trunk.setMatrixAt(t.i,D.matrix);crown.setMatrixAt(t.i,D.matrix);trunk.instanceMatrix.needsUpdate=crown.instanceMatrix.needsUpdate=true;
+const g=new T.Group(),tk=new T.Mesh(new T.CylinderGeometry(.25*t.s,.35*t.s,4*t.s,6),new T.MeshLambertMaterial({color:0x5a3a1e})),cr=new T.Mesh(new T.ConeGeometry(2*t.s,6*t.s,7),new T.MeshLambertMaterial({color:0x1d4d22}));tk.position.y=2*t.s;cr.position.y=6*t.s;g.add(tk,cr);g.position.set(t.x,t.y,t.z);sc.add(g);
+const d=new T.Vector3(t.x-p.x,0,t.z-p.z).normalize();falling.push({g,tk,t,d,th:0,w:.05,k:new T.Vector3(d.z,0,-d.x),done:0,age:0});msg('Timber!')}
+var UPD=function(dt){for(let i=falling.length-1;i>=0;i--){const f=falling[i];if(!f.done){f.w+=6*Math.sin(f.th+.25)*dt;f.th+=f.w*dt;f.g.quaternion.setFromAxisAngle(f.k,Math.min(f.th,1.52));if(f.th>=1.52){f.done=1;f.tk.visible=false;for(let j=0;j<3;j++)mkLog(f.t.x+f.d.x*(1.2+j*1.5)*f.t.s,f.t.z+f.d.z*(1.2+j*1.5)*f.t.s);msg('Tree down. Pick up the logs (E)')}}else{f.age+=dt;if(f.age>6){sc.remove(f.g);falling.splice(i,1)}}}
+for(const it of items){const m=it.m;it.vy-=9.8*dt;m.position.y+=it.vy*dt;const gy=H(m.position.x,m.position.z)+(it.t=='log'?.14:it.t=='rock'?.1:.05);if(m.position.y<gy){m.position.y=gy;it.vy=it.vy<-1.5?-it.vy*.3:0}}
+if(book.on&&book.sel<4){const r=book.sel,g=GS[r],[gx,gz]=front(GD[r]);ghost.visible=true;ghost.scale.set(g[0],g[1],g[2]);ghost.position.set(gx,H(gx,gz)+g[1]/2,gz);ghost.rotation.y=Math.atan2(fw.x,fw.z);ghost.material.color.set(can(r)?0x33ff55:0xff3333)}else ghost.visible=false};
+function place(){const r=book.sel;if(r==0)return fire();if(r==1)return build();if(r==4){if(inv.pick)return msg('You already have a pickaxe');if(!can(4))return msg('Needs 2 sticks + 3 stone');inv.stick-=2;inv.rock-=3;inv.pick=true;return msg('Crafted a pickaxe')}if(r==5)return sleep();
+if(!can(r))return msg('Needs 2 logs');inv.log-=2;const[x,z]=front(3.2),g=GS[r],m=new T.Mesh(new T.BoxGeometry(g[0],g[1],g[2]),new T.MeshLambertMaterial({color:0x6b4a2a}));m.position.set(x,H(x,z)+g[1]/2,z);m.rotation.y=Math.atan2(fw.x,fw.z);sc.add(m);msg(r==2?'Wall built':'Floor built')}
+function pick(p,r){for(let i=items.length-1;i>=0;i--)if(items[i].m.position.distanceTo(p)<r){inv[items[i].t]++;sc.remove(items[i].m);items.splice(i,1);msg('Picked up '+(items.length>=0?'item':''));return}}
+function craftAxe(){if(inv.axe)return msg('You already carry an axe');if(inv.stick>=2&&inv.rock>=1){inv.stick-=2;inv.rock--;inv.axe=true;msg('Crafted a stone axe');const w=wpn();if(w)w.visible=true}else msg('Axe needs 2 sticks + 1 rock')}
+function front(d){const p=ppos();fw.set(0,0,-1).applyQuaternion(cam.getWorldQuaternion(new T.Quaternion()));fw.y=0;fw.normalize();const x=p.x+fw.x*d,z=p.z+fw.z*d;return[x,z]}
+function fire(){if(inv.log<1||inv.stick<2)return msg('Fire needs 1 log + 2 sticks');inv.log--;inv.stick-=2;const[x,z]=front(1.5),y=H(x,z),m=new T.Mesh(new T.ConeGeometry(.25,.6,6),new T.MeshBasicMaterial({color:0xff7a1a}));m.position.set(x,y+.3,z);const l=new T.PointLight(0xff8833,1.5,14);l.position.set(x,y+1,z);sc.add(m,l);fires.push({x,z,m,l});msg('Campfire lit')}
+function build(){if(inv.log<4)return msg('Shelter needs 4 logs');if(shelter)return msg('Shelter already built');inv.log-=4;const[x,z]=front(3),y=H(x,z);shelter=new T.Mesh(new T.ConeGeometry(2,2.4,4),new T.MeshLambertMaterial({color:0x6b4a2a}));shelter.position.set(x,y+1.2,z);shelter.rotation.y=.78;sc.add(shelter);msg('Shelter built')}
+function sleep(){const p=ppos();if(!shelter||shelter.position.distanceTo(p)>5)return msg('Sleep near your shelter');if(Math.sin(ang())>.05)return msg('Can only sleep at night');tod=.01;st.hp=100;msg('You slept until morning')}
+function eat(){if(inv.meat<1)return msg('No meat');inv.meat--;const p=ppos(),c=fires.some(f=>Math.hypot(f.x-p.x,f.z-p.z)<5);st.food=cl(st.food+(c?45:30),0,100);if(!c){st.hp-=8;msg('Raw meat... you feel sick')}else msg('Cooked meat. Delicious')}
+function drink(){const p=ppos();if(H(p.x,p.z)<1.5){st.water=100;msg('Drank water')}else msg('Find the shore to drink')}
+// controls desktop
+const k={};addEventListener('keydown',e=>{k[e.code]=1;typed=(typed+e.key).toLowerCase().slice(-6);if(typed=='portal')unlockPortal();if(e.code=='KeyM')toggleCheat();if(cheat.on){const n=chl().length;if(e.code=='ArrowDown')cheat.sel=(cheat.sel+1)%n;if(e.code=='ArrowUp')cheat.sel=(cheat.sel+n-1)%n;if(e.code=='Enter')cheatDo()}if(e.code=='Enter'&&intro.on)intro.t=intro.t<42?42:62;if(e.code=='KeyE')pick(ppos(),2.2);if(e.code=='KeyC')craftAxe();if(e.code=='KeyF')fire();if(e.code=='KeyB'){book.on=!book.on;ghost.visible=book.on}if(book.on&&e.code>='Digit1'&&e.code<='Digit6'){book.sel=+e.code[5]-1;return}if(e.code=='KeyZ')sleep();if(e.code=='Digit1')eat();if(e.code=='Digit2')drink()});addEventListener('keyup',e=>k[e.code]=0);
+let yaw=0,pitch=0;addEventListener('mousemove',e=>{if(document.pointerLockElement){yaw-=e.movementX*.002;pitch=cl(pitch-e.movementY*.002,-1.4,1.4)}});
+ren.domElement.addEventListener('click',()=>{if(ren.xr.isPresenting)return;if(!document.pointerLockElement)return ren.domElement.requestPointerLock();if(intro.on)return;if(cheat.on)return cheatDo();if(book.on)return place();const p=ppos();cam.getWorldDirection(fw);if(wp=='flintlock')return fireGun(p,fw.clone());if(wp=='portal')return shootPortal(p,fw.clone(),0);hit(p,fw.clone(),2.6)});
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight)});
+// VR controllers
+const ctl=[0,1].map(i=>{const c=ren.xr.getController(i);c.userData={prev:new T.Vector3(),btn:[]};rig.add(c);
+c.addEventListener('connected',e=>{c.userData.h=e.data.handedness;c.userData.gp=e.data.gamepad;while(c.children.length)c.remove(c.children[0]);const hnd=makeHand(e.data.handedness=='left');hnd.rotation.z=e.data.handedness=='left'?.9:-.9;c.add(hnd);if(e.data.handedness=='right'){const w=new T.Group();holders.push(w);c.add(w);c.userData.w=w;equip(wp,1)}});return c});
+const wpn=()=>ctl.find(c=>c.userData.w);
+function vrInput(dt){const cp=new T.Vector3();for(const c of ctl){const u=c.userData,g=u.gp;if(!g)continue;const b=(i)=>g.buttons[i]&&g.buttons[i].pressed,ed=(i)=>{const n=b(i),f=n&&!u.btn[i];u.btn[i]=n;return f};if(!u.lp)u.lp=c.position.clone();if(arms&&b(1)){const dl=c.position.clone().sub(u.lp).applyQuaternion(rig.quaternion);rig.position.x-=dl.x;rig.position.z-=dl.z}u.lp.copy(c.position);
+if(u.h=='left'){const x=g.axes[2]||0,y=g.axes[3]||0;if(!arms&&Math.hypot(x,y)>.15){cam.getWorldDirection(fw);fw.y=0;fw.normalize();const s=3*dt;rig.position.x+=fw.x*-y*s-fw.z*x*s;rig.position.z+=fw.z*-y*s+fw.x*x*s}
+if(ed(4))eat();if(ed(5))toggleCheat();if(ed(0)&&wp=='portal'){c.getWorldPosition(cp);shootPortal(cp,new T.Vector3(0,0,-1).applyQuaternion(c.getWorldQuaternion(new T.Quaternion())),1)}}
+if(u.h=='right'){const x=g.axes[2]||0;if(Math.abs(x)>.7&&!u.turn){rig.rotation.y-=Math.sign(x)*Math.PI/6;u.turn=1}if(Math.abs(x)<.3)u.turn=0;
+if(ed(0)){c.getWorldPosition(cp);const d0=new T.Vector3(0,0,-1).applyQuaternion(c.getWorldQuaternion(new T.Quaternion()));if(wp=='portal')shootPortal(cp,d0,0);else if(wp=='flintlock')fireGun(cp,d0);else if(cheat.on)cheatDo();else if(book.on)place();else pick(cp,1.3)}if(ed(1)){c.getWorldPosition(cp);pick(cp,1.3)}if(ed(5)){book.on=!book.on;ghost.visible=book.on}const y2=g.axes[3]||0;if((book.on||cheat.on)&&Math.abs(y2)>.7&&!u.sel){const dn=y2>0;if(cheat.on)cheat.sel=(cheat.sel+(dn?1:chl().length-1))%chl().length;else book.sel=(book.sel+(dn?1:5))%6;u.sel=1}if(Math.abs(y2)<.3)u.sel=0;
+c.getWorldPosition(cp);const sp=cp.distanceTo(u.prev)/dt;if(sp>2.2&&dt>0){const d=cp.clone().sub(u.prev).normalize();hit(cp,d,1.6)}u.prev.copy(cp)}}}
+const intro={on:false,t:0,ph:0,si:0},pg=new T.Group(),fade=new T.Mesh(new T.PlaneGeometry(4,4),new T.MeshBasicMaterial({color:0,transparent:true,opacity:0,depthTest:false}));fade.position.z=-.3;fade.renderOrder=1000;cam.add(fade);
+const IS=new T.Vector3(-260,0,cz-50),IE=new T.Vector3(cx-13,H(cx-13,cz)+.3,cz),pfire=new T.Group(),plight=new T.PointLight(0xffffff,.8,12);
+const SUB=[[1,'Theo: Look! The whole island!',4000],[5,'Pilot: Seatbelts on, folks.',3500],[9,'You: Almost there, buddy.',3500],[13,'Pilot: Some turbulence ahead...',4000],[18,'Theo: Why is it shaking?!',4000],[23,'Pilot: MAYDAY! ENGINE FIRE!',4000],[27,'You: Hold on to me, Theo!',4000],[31,'Pilot: BRACE! BRACE! BRACE!',5000],[38,'Theo: DAD!!',3000],[48,'You: Theo...? THEO!',4000],[53,'Something drags a small figure away.',5000],[58,'Find Theo. Survive.',4000]];
+{const bx=(a,b,c,x,y,z,col)=>{const m=new T.Mesh(new T.BoxGeometry(a,b,c),gm(col||0x8a9096));m.position.set(x,y,z);pg.add(m);return m};
+bx(9,.2,3,0,-.1,0,0x555a60);bx(9,.15,3,0,2.25,0);bx(.2,2.3,3,-4.5,1.1,0);bx(.2,2.3,3,4.5,1.1,0);
+for(const z of[-1.5,1.5]){bx(9,.9,.1,0,.45,z);bx(9,.5,.1,0,1.95,z);for(let x=-4;x<=4;x+=1.5)bx(.15,.9,.12,x,1.3,z)}
+for(let i=0;i<4;i++)for(const z of[-1,-.4,.6,1.2]){bx(.5,.4,.5,-2+i*1.8,.2,z,0x2a4a8a);bx(.1,.7,.5,-2.3+i*1.8,.75,z,0x2a4a8a)}
+const fg=(x,z,c,sz)=>{bx(.35*sz,.55*sz,.25*sz,x,.65*sz+.3,z,c);const h=new T.Mesh(new T.SphereGeometry(.12*sz),gm(0xe0b08a));h.position.set(x,1.1*sz+.3,z);pg.add(h)};
+fg(-.2,-.4,0xd8a030,.8);[[-2,.6],[-2,1.2],[1.6,.6],[1.6,-.4],[3.4,1.2]].forEach(([x,z],i)=>fg(x,z,[0x884444,0x448844,0x444488][i%3],1));
+bx(3,.15,8,.5,.5,-5.5,0xaab0b5);bx(1.8,.9,.9,.5,.9,-8.5,0x333333);
+for(let i=0;i<3;i++){const f=new T.Mesh(new T.ConeGeometry(.4-i*.1,1.2+i*.3,6),new T.MeshBasicMaterial({color:[0xff5a10,0xffa020,0xffe060][i]}));f.position.set(.5,1.6,-8.5);pfire.add(f)}
+pfire.visible=false;plight.position.set(0,1.8,0);pg.add(pfire,plight)}
+function startIntro(vr){intro.on=true;intro.t=0;intro.ph=0;intro.si=0;sc.add(pg);pg.add(rig);yaw=0;pitch=0;sc.background=new T.Color(0x87a8c8);sc.fog.color.set(0x87a8c8);sc.fog.density=.003;ghost.visible=false}
+function introUpd(dt,pres){const i=intro;i.t+=dt;const t=i.t;
+while(i.si<SUB.length&&t>=SUB[i.si][0]){msg(SUB[i.si][1],SUB[i.si][2]);i.si++}
+if(i.ph==0){const u=Math.min(t/42,1),pos=w=>new T.Vector3(IS.x+(IE.x-IS.x)*w,IE.y+240*(1-Math.pow(w,1.6)),IS.z+(IE.z-IS.z)*w),p=pos(u),q=pos(Math.min(u+.01,1)),a=cl((t-13)/10,0,1)*.12+(t>23?.18:0),r=()=>(R()-.5)*a;
+pg.position.set(p.x+r(),p.y+r(),p.z+r());pg.rotation.set(r()*.5+(t>28?Math.sin(t*3)*.12:0),-Math.atan2(q.z-p.z,q.x-p.x),Math.atan2(q.y-p.y,Math.hypot(q.x-p.x,q.z-p.z))+r()*.3);
+plight.intensity=t>13?.4+R()*.8:.8;pfire.visible=t>23;if(t>23)plight.color.set(0xff5522);
+rig.position.set(-.2,pres?-.4:1.15,-1);rig.rotation.set(0,-Math.PI/2+(pres?0:yaw),0);cam.rotation.x=pres?0:pitch;fade.material.opacity=t>41?cl(t-41,0,1):0;
+if(t>=42){i.ph=1;sc.remove(pg);pg.remove(rig);sc.add(rig);yaw=-.52;sc.fog.density=.025;fade.material.opacity=1}}
+else{const u=t-42;fade.material.opacity=u<3?1:Math.max(0,1-(u-3)/4);const k=cl((u-3)/10,0,1);
+rig.position.set(cx-3,H(cx-3,cz+5)+(pres?0:.35+1.35*k),cz+5);rig.rotation.set(0,pres?-.52:yaw,pres?0:.9*(1-k));cam.rotation.x=pres?0:pitch;
+if(t>=62){i.on=false;rig.rotation.z=0;msg('B: building book  E: pick up',6000)}}}
+const cheat={on:false,sel:0},cits=[],ray=new T.Raycaster();let pcool=0;
+const portals=[0,1].map(i=>{const g=new T.Group(),c=i?0xff8a00:0x2a8aff;g.add(new T.Mesh(new T.CircleGeometry(.8,24),new T.MeshBasicMaterial({color:c,transparent:true,opacity:.55,side:T.DoubleSide})),new T.Mesh(new T.RingGeometry(.8,.95,24),new T.MeshBasicMaterial({color:c,side:T.DoubleSide})));g.scale.y=1.4;g.visible=false;g.userData.np=1;g.userData.n=new T.Vector3(0,0,1);sc.add(g);return g});
+const CH=[['Spawn cannibal',()=>spawnEn(1)],['Spawn citizen',spawnCit],['Give materials',()=>{inv.log+=10;inv.stick+=10;inv.rock+=10;inv.meat+=5;msg('Materials added')}],['Chainsaw',()=>equip('chainsaw')],['Flintlock',()=>equip('flintlock')],['Map',()=>equip('map')],['Axe',()=>equip('axe')],['Fun: arm moving on/off',()=>{arms=!arms;msg('Arm moving '+(arms?'ON: hold grip and pull':'OFF'))}],['Heal and feed',()=>{st.hp=st.food=st.water=100}],['Toggle day/night',()=>{tod=tod<5/7?.78:.1}]],
+chl=()=>portalOK?CH.concat([['Portal gun',()=>equip('portal')],['Test chamber',chamber]]):CH;
+function spawnCit(){const g=new T.Group(),b=new T.Mesh(new T.BoxGeometry(.5,.9,.3),new T.MeshLambertMaterial({color:0x2a6adf})),h=new T.Mesh(new T.SphereGeometry(.18),new T.MeshLambertMaterial({color:0xe0b08a})),l=new T.Mesh(new T.BoxGeometry(.4,.7,.25),new T.MeshLambertMaterial({color:0x333344}));b.position.y=1;h.position.y=1.65;l.position.y=.35;g.add(b,h,l);const[x,z]=front(5);g.position.set(x,H(x,z),z);sc.add(g);cits.push({g,a:R()*6.28});msg('Citizen spawned')}
+function fireGun(p,d){if(cool>0)return;cool=.9;swingT=1;msg('BANG!',700);for(let i=enemies.length-1;i>=0;i--){const e=enemies[i],v=e.g.position.clone().add(new T.Vector3(0,1,0)).sub(p),t=v.dot(d);if(t>0&&t<70&&v.addScaledVector(d,-t).length()<.8){e.hp-=10;if(e.hp<=0){sc.remove(e.g);enemies.splice(i,1);inv.meat++;msg('Cannibal shot')}break}}}
+function shootPortal(o,d,i){ray.set(o,d);ray.far=80;const hs=ray.intersectObjects(sc.children.filter(q=>q!==rig&&!q.userData.np&&q!==ghost),true);for(const h of hs){if(!h.face)continue;const n=h.face.normal.clone().transformDirection(h.object.matrixWorld);if(n.dot(d)>0)n.negate();const g=portals[i];g.position.copy(h.point).addScaledVector(n,.06);g.lookAt(g.position.clone().add(n));g.userData.n=n;g.visible=true;msg(i?'Orange portal':'Blue portal',1200);return}}
+function chamber(){const bx=-18,bz=-18,y=H(bx,bz)+2.5,w=new T.MeshLambertMaterial({color:0xeeeeee});[[0,-7,14,.5],[0,7,14,.5],[-7,0,.5,14],[7,0,.5,14],[0,0,.5,6]].forEach(([x,z,a,b])=>{const m=new T.Mesh(new T.BoxGeometry(a,5,b),w);m.position.set(bx+x,y,bz+z);sc.add(m)});rig.position.set(bx+4,H(bx+4,bz+4)+1.7,bz+4);msg('Test chamber: shoot the walls',5000)}
+function unlockPortal(){if(!sandbox||portalOK)return;portalOK=true;equip('portal');chamber();msg('PORTAL MODE! Click blue, right-click orange',6000)}
+function toggleCheat(){if(!sandbox)return sleep();cheat.on=!cheat.on;if(cheat.on){book.on=false;ghost.visible=false;if(++secret>=5)unlockPortal()}}
+function cheatDo(){chl()[cheat.sel][1]()}
+ren.domElement.addEventListener('contextmenu',e=>{e.preventDefault();if(wp=='portal'&&!intro.on){const p=ppos();cam.getWorldDirection(fw);shootPortal(p,fw.clone(),1)}});
+function begin(vr){const md=document.getElementById('md').value,mp=document.getElementById('mp').selectedIndex;if(md=='Story')return startIntro(vr);sandbox=true;mapSel=mp;if(mp==2){enemies.forEach(e=>sc.remove(e.g));enemies.length=0;tod=.2;sc.fog.density=.012}const[x,z]=mp==1?[cx-3,cz+5]:[0,0];rig.position.set(x,H(x,z)+1.7,z);msg('Sandbox! M or left Y: cheat menu',6000)}
+const UPD0=UPD;UPD=function(dt){UPD0(dt);for(const c of cits){c.a+=(R()-.5)*.1;const g=c.g,nx=g.position.x+Math.sin(c.a)*.9*dt,nz=g.position.z+Math.cos(c.a)*.9*dt;if(H(nx,nz)>1.2){g.position.x=nx;g.position.z=nz}else c.a+=3;g.position.y=H(g.position.x,g.position.z);g.rotation.y=c.a}
+const pw=ppos();if(H(pw.x,pw.z)<1.5&&st.water<100)st.water=Math.min(100,st.water+25*dt);
+pcool-=dt;if(portals[0].visible&&portals[1].visible&&pcool<=0)for(let i=0;i<2;i++){const a=portals[i],o=portals[1-i],n=a.userData.n,v=pw.clone().sub(a.position),d=v.dot(n);if(Math.abs(d)<.6&&v.addScaledVector(n,-d).length()<1.5){const on=o.userData.n;rig.position.x+=o.position.x+on.x*.9-pw.x;rig.position.z+=o.position.z+on.z*.9-pw.z;const th=Math.atan2(-on.x,-on.z);yaw=th;if(ren.xr.isPresenting)rig.rotation.y=th;pcool=1;msg('Whoosh!',800);break}}};
+// loop
+let last=performance.now(),hd=0;
+ren.setAnimationLoop(()=>{const now=performance.now(),dt=Math.min((now-last)/1000,.1);last=now;cool-=dt;
+const pres=ren.xr.isPresenting;
+if(intro.on){introUpd(dt,pres);if((hd+=dt)>.25){hd=0;drawHud()}ren.render(sc,cam);return}
+if(pres)vrInput(dt);else{rig.rotation.y=yaw;cam.rotation.x=pitch;const s=(k.ShiftLeft?7:4)*dt,f=(k.KeyW?1:0)-(k.KeyS?1:0),r=(k.KeyD?1:0)-(k.KeyA?1:0);rig.position.x+=(-Math.sin(yaw)*f+Math.cos(yaw)*r)*s;rig.position.z+=(-Math.cos(yaw)*f-Math.sin(yaw)*r)*s}
+const hg=H(rig.position.x,rig.position.z);rig.position.y=Math.max(hg,.3)+(pres?0:1.7);
+// day/night
+handsD.visible=!pres;UPD(dt);swingT=Math.max(0,swingT-dt*3);rh.rotation.x=-.2-Math.sin(swingT*Math.PI)*1.3;rh.position.y=-.32+Math.sin(swingT*Math.PI)*.15;for(const q of smoke){const u=(now/1000*.7+q.ph)%6;q.m.position.set(q.x+u*.4,q.y+u,q.z);q.m.scale.setScalar(.6+u*.5);q.m.material.opacity=.4*(1-u/6)}crl.intensity=2.2+R()*.6;if(!(sandbox&&mapSel==2))tod=(tod+dt/420)%1;const sh=Math.sin(ang()),kk=cl(sh*2+.3,0,1),sk=new T.Color(0x05070f).lerp(new T.Color(0x87a8c8),kk);sc.background=sk;sc.fog.color.copy(sk);hemi.intensity=.2+.5*kk;sun.intensity=.8*kk;sun.position.set(Math.cos(ang())*100,sh*100+10,30);
+// survival
+const p=ppos(),night=sh<.05;st.food-=dt*.35;st.water-=dt*.5;
+if(st.food<=0||st.water<=0)st.hp-=dt*2;else if(st.food>30&&st.water>30)st.hp=Math.min(100,st.hp+dt*.8);st.food=Math.max(st.food,0);st.water=Math.max(st.water,0);
+// enemies
+const want=sandbox&&mapSel==2?0:night?12:6;if(enemies.length<want&&R()<dt*.3)spawnEn();
+for(const e of enemies){const g=e.g,dx=p.x-g.position.x,dz=p.z-g.position.z,d=Math.hypot(dx,dz);e.cd-=dt;const nf=fires.find(f=>Math.hypot(f.x-g.position.x,f.z-g.position.z)<9);
+if(nf){const fx=g.position.x-nf.x,fz=g.position.z-nf.z,fd=Math.hypot(fx,fz)||1;g.position.x+=fx/fd*2*dt;g.position.z+=fz/fd*2*dt}
+else if(d<40&&d>1.3){g.position.x+=dx/d*(night?3.2:2.4)*dt;g.position.z+=dz/d*(night?3.2:2.4)*dt}
+else if(d<=1.3&&e.cd<=0){e.cd=1.1;st.hp-=9;msg('A cannibal hits you!')}
+else if(d>=40){g.position.x+=Math.sin(now/3000+e.hp)*.6*dt}
+g.position.y=Math.max(H(g.position.x,g.position.z),0);g.rotation.y=Math.atan2(dx,dz)}
+if(st.hp<=0){st.hp=100;st.food=st.water=70;rig.position.set(0,H(0,0)+1.7,0);inv.stick=inv.rock=inv.log=inv.meat=0;msg('You died. Washed up at the crash site')}
+for(const f of fires)f.l.intensity=1.3+Math.random()*.4;
+if((hd+=dt)>.25){hd=0;drawHud()}
+ren.render(sc,cam)});
+// menu
+const m=document.getElementById('m');document.getElementById('pl').onclick=()=>{m.style.display='none';ren.domElement.requestPointerLock();begin(false)};
+if(navigator.xr)navigator.xr.isSessionSupported('immersive-vr').then(ok=>{if(ok){const b=document.getElementById('vr');b.style.display='inline-block';b.onclick=()=>navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor','bounded-floor']}).then(s=>{ren.xr.setSession(s);m.style.display='none';begin(true);s.addEventListener('end',()=>m.style.display='flex')})}}).catch(()=>{});
+</script></body></html>
